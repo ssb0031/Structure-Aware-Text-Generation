@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Handwriting Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            border-color: #d6e9c6;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            border-color: #ebccd1;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <h1>Handwriting Generation Pipeline</h1>
+    
+    <div class="section">
+        <h2>Step 1: Upload Character Set Image</h2>
+        <form id="uploadForm">
+            <input type="file" id="imageFile" accept="image/*">
+            <button type="submit">Upload & Process</button>
+        </form>
+        <div id="uploadStatus"></div>
+        <div id="jobIdDisplay" style="display: none;">
+            Job ID: <span id="jobId"></span>
+        </div>
+    </div>
+    
+    <div class="section" id="generateSection" style="display: none;">
+        <h2>Step 2: Generate Handwriting</h2>
+        <form id="generateForm">
+            <input type="hidden" id="jobIdInput">
+            <div class="form-group">
+                <label for="textInput">Text to Render:</label>
+                <textarea id="textInput" rows="4" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="styleSelect">Style:</label>
+                <select id="styleSelect">
+                    <option value="FullMask">Full Character</option>
+                    <option value="EdgeOnly">Edge Only</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="colorSelect">Ink Color:</label>
+                <select id="colorSelect">
+                    <option value="black">Black</option>
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="paperSelect">Paper Style:</label>
+                <select id="paperSelect">
+                    <option value="plain">Plain</option>
+                    <option value="ruled">Ruled</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="linesInput">Lines per Page:</label>
+                <input type="number" id="linesInput" value="10" min="1">
+            </div>
+            <button type="submit">Generate Handwriting</button>
+        </form>
+        <div id="generateStatus"></div>
+        <div id="resultContainer" style="display: none; margin-top: 20px;">
+            <a id="downloadLink" download="handwriting.png">Download Result</a>
+            <img id="resultImage" style="max-width: 100%; margin-top: 10px;">
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('imageFile');
+            const statusDiv = document.getElementById('uploadStatus');
+            const jobIdDisplay = document.getElementById('jobIdDisplay');
+            const jobIdSpan = document.getElementById('jobId');
+            const generateSection = document.getElementById('generateSection');
+            const jobIdInput = document.getElementById('jobIdInput');
+            
+            if (!fileInput.files.length) {
+                statusDiv.textContent = 'Please select an image file';
+                statusDiv.className = 'error';
+                return;
+            }
+            
+            statusDiv.textContent = 'Uploading and processing...';
+            statusDiv.className = '';
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch('/upload_image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    jobIdSpan.textContent = data.job_id;
+                    jobIdInput.value = data.job_id;
+                    jobIdDisplay.style.display = 'block';
+                    generateSection.style.display = 'block';
+                    statusDiv.textContent = data.message;
+                    statusDiv.className = 'success';
+                } else {
+                    statusDiv.textContent = `Error: ${data.error}`;
+                    statusDiv.className = 'error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'error';
+            }
+        });
+
+        document.getElementById('generateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const jobId = document.getElementById('jobIdInput').value;
+            const text = document.getElementById('textInput').value;
+            const style = document.getElementById('styleSelect').value;
+            const color = document.getElementById('colorSelect').value;
+            const paper = document.getElementById('paperSelect').value;
+            const lines = document.getElementById('linesInput').value;
+            const statusDiv = document.getElementById('generateStatus');
+            const resultContainer = document.getElementById('resultContainer');
+            const downloadLink = document.getElementById('downloadLink');
+            const resultImage = document.getElementById('resultImage');
+            
+            statusDiv.textContent = 'Generating handwriting...';
+            statusDiv.className = '';
+            resultContainer.style.display = 'none';
+            
+            try {
+                const response = await fetch('/generate_text', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        job_id: jobId,
+                        text: text,
+                        style: style,
+                        ink_color: color,
+                        paper: paper,
+                        lines_per_page: lines
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    downloadLink.href = url;
+                    resultImage.src = url;
+                    resultContainer.style.display = 'block';
+                    statusDiv.textContent = 'Generation complete!';
+                    statusDiv.className = 'success';
+                } else {
+                    const data = await response.json();
+                    statusDiv.textContent = `Error: ${data.error}`;
+                    statusDiv.className = 'error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'error';
+            }
+        });
+    </script>
+</body>
+</html>
